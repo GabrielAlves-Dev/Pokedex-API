@@ -1,5 +1,6 @@
 const express = require('express')
 const app = express();
+app.use(express.json());
 
 const PokemonType = {
     FIRE: 'Fire',
@@ -80,5 +81,5 @@ app.delete('/pokemons/:id', (req, res) => {
 
 const port = 8000
 app.listen(port , ()=>{
-    console.log('suzi vagabunda')
+    console.log('Servidor rodando na porta 8000')
 })
