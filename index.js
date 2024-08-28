@@ -1,5 +1,17 @@
 const express = require('express')
 const app = express();
+app.use(express.json());
+
+const { Pool } = require('pg');
+
+const pool = new Pool({
+    user: 'postgres',
+    host: 'localhost',
+    database: 'pokemon_db',
+    password: '12345',
+    port: 5432,
+});
+
 
 const PokemonType = {
     FIRE: 'Fire',
@@ -24,60 +36,78 @@ const PokemonType = {
 let pokemons = [];
 let nextId = 1;
 
-app.get('/pokemons', (req, res) => {
-    res.json(pokemons);
-});
-
-app.get('/pokemons/:id', (req, res) => {
-    const { id } = req.params;
-    const pokemon = pokemons.find(p => p.id === parseInt(id));
-    if (!pokemon) {
-        return res.status(404).json({ message: 'Pokémon não encontrado.' });
+app.get('/pokemons', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM pokemons');
+        res.json(result.rows);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao buscar Pokémons.' });
     }
-    res.json(pokemon);
 });
 
-app.post('/pokemons', (req, res) => {
+app.get('/pokemons/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await pool.query('SELECT * FROM pokemons WHERE id = $1', [id]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Pokémon não encontrado.' });
+        }
+        res.json(result.rows[0]);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao buscar Pokémon.' });
+    }
+});
+
+app.post('/pokemons', async (req, res) => {
     const { name, number, type, image } = req.body;
     if (!name || !number || !type || !image) {
         return res.status(400).json({ message: 'Todos os campos são obrigatórios.' });
     }
-    if (!Object.values(PokemonType).includes(type)) {
-        return res.status(400).json({ message: 'Tipo de Pokémon inválido.' });
+    try {
+        const result = await pool.query(
+            'INSERT INTO pokemons (name, number, type, image) VALUES ($1, $2, $3, $4) RETURNING *',
+            [name, number, type, image]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao adicionar Pokémon.' });
     }
-    const newPokemon = { id: nextId++, name, number, type, image };
-    pokemons.push(newPokemon);
-    res.status(201).json(newPokemon);
 });
 
-app.put('/pokemons/:id', (req, res) => {
+app.put('/pokemons/:id', async (req, res) => {
     const { id } = req.params;
     const { name, number, type, image } = req.body;
-    const pokemonIndex = pokemons.findIndex(p => p.id === parseInt(id));
-    if (pokemonIndex === -1) {
-        return res.status(404).json({ message: 'Pokémon não encontrado.' });
-    }
     if (!name || !number || !type || !image) {
         return res.status(400).json({ message: 'Todos os campos são obrigatórios.' });
     }
-    if (!Object.values(PokemonType).includes(type)) {
-        return res.status(400).json({ message: 'Tipo de Pokémon inválido.' });
+    try {
+        const result = await pool.query(
+            'UPDATE pokemons SET name = $1, number = $2, type = $3, image = $4 WHERE id = $5 RETURNING *',
+            [name, number, type, image, id]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Pokémon não encontrado.' });
+        }
+        res.json(result.rows[0]);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao atualizar Pokémon.' });
     }
-    const updatedPokemon = { id: parseInt(id), name, number, type, image };
-    pokemons[pokemonIndex] = updatedPokemon;
-    res.json(updatedPokemon);
 });
 
-app.delete('/pokemons/:id', (req, res) => {
+app.delete('/pokemons/:id', async (req, res) => {
     const { id } = req.params;
-    const pokemonIndex = pokemons.findIndex(p => p.id === parseInt(id));
-    if (pokemonIndex === -1) {
-        return res.status(404).json({ message: 'Pokémon não encontrado.' });
+    try {
+        const result = await pool.query('DELETE FROM pokemons WHERE id = $1 RETURNING *', [id]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Pokémon não encontrado.' });
+        }
+        res.status(204).send();
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao remover Pokémon.' });
     }
-    pokemons.splice(pokemonIndex, 1);
-    res.status(204).send();
 });
 
 const port = 8000
 app.listen(port , ()=>{
+    console.log('Servidor rodando na porta 8000')
 })
