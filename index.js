@@ -80,5 +80,4 @@ app.delete('/pokemons/:id', (req, res) => {
 
 const port = 8000
 app.listen(port , ()=>{
-    console.log('suzi vagabunda')
 })
