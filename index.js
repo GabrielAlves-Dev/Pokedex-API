@@ -33,9 +33,7 @@ const PokemonType = {
     FAIRY: 'Fairy',
 };
 
-let pokemons = [];
-let nextId = 1;
-
+// VIZUALIZAR TODOS OS POKEMONS
 app.get('/pokemons', async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM pokemons');
@@ -45,10 +43,11 @@ app.get('/pokemons', async (req, res) => {
     }
 });
 
-app.get('/pokemons/:id', async (req, res) => {
-    const { id } = req.params;
+// VIZUALIZAR POKEMON POR ID
+app.get('/pokemons/:number', async (req, res) => {
+    const { number } = req.params;
     try {
-        const result = await pool.query('SELECT * FROM pokemons WHERE id = $1', [id]);
+        const result = await pool.query('SELECT * FROM pokemons WHERE number = $1', [number]);
         if (result.rows.length === 0) {
             return res.status(404).json({ message: 'Pokémon não encontrado.' });
         }
@@ -58,15 +57,21 @@ app.get('/pokemons/:id', async (req, res) => {
     }
 });
 
+// INSERIR POKEMON
 app.post('/pokemons', async (req, res) => {
-    const { name, number, type, image } = req.body;
-    if (!name || !number || !type || !image) {
-        return res.status(400).json({ message: 'Todos os campos são obrigatórios.' });
+    const { number, name, types} = req.body;
+    if (!name || !number || !types || !Array.isArray(types)) {
+        return res.status(400).json({ message: 'Todos os campos são obrigatórios, e types deve ser um array não vazio.' });
+    }
+    const invalidTypes = types.filter(type => !Object.values(PokemonType).includes(type));
+    if (invalidTypes.length > 0) {
+        return res.status(400).json({ message: `Tipos de Pokémon inválidos: ${invalidTypes.join(', ')}` });
     }
     try {
+        const imageUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${number}.png`;
         const result = await pool.query(
-            'INSERT INTO pokemons (name, number, type, image) VALUES ($1, $2, $3, $4) RETURNING *',
-            [name, number, type, image]
+            'INSERT INTO pokemons (number, name, types, image) VALUES ($1, $2, $3, $4) RETURNING *',
+            [number, name, types, imageUrl]
         );
         res.status(201).json(result.rows[0]);
     } catch (error) {
@@ -74,16 +79,22 @@ app.post('/pokemons', async (req, res) => {
     }
 });
 
-app.put('/pokemons/:id', async (req, res) => {
-    const { id } = req.params;
-    const { name, number, type, image } = req.body;
-    if (!name || !number || !type || !image) {
-        return res.status(400).json({ message: 'Todos os campos são obrigatórios.' });
+// ATUALIZAR POKEMON
+app.put('/pokemons/:number', async (req, res) => {
+    const { number } = req.params;
+    const { name, types} = req.body;
+    if (!name || !number || !types || !Array.isArray(types) || types.length === 0) {
+        return res.status(400).json({ message: 'Todos os campos são obrigatórios, e types deve ser um array não vazio.' });
+    }
+    const invalidTypes = types.filter(type => !Object.values(PokemonType).includes(type));
+    if (invalidTypes.length > 0) {
+        return res.status(400).json({ message: `Tipos de Pokémon inválidos: ${invalidTypes.join(', ')}` });
     }
     try {
+        const imageUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${number}.png`;
         const result = await pool.query(
-            'UPDATE pokemons SET name = $1, number = $2, type = $3, image = $4 WHERE id = $5 RETURNING *',
-            [name, number, type, image, id]
+            'UPDATE pokemons SET name = $1, number = $2, types = $3, image = $4 WHERE number = $2 RETURNING *',
+            [name, number, types, imageUrl]
         );
         if (result.rows.length === 0) {
             return res.status(404).json({ message: 'Pokémon não encontrado.' });
@@ -94,14 +105,15 @@ app.put('/pokemons/:id', async (req, res) => {
     }
 });
 
-app.delete('/pokemons/:id', async (req, res) => {
-    const { id } = req.params;
+// DELETAR POKEMON
+app.delete('/pokemons/:number', async (req, res) => {
+    const { number } = req.params;
     try {
-        const result = await pool.query('DELETE FROM pokemons WHERE id = $1 RETURNING *', [id]);
+        const result = await pool.query('DELETE FROM pokemons WHERE number = $1 RETURNING *', [number]);
         if (result.rows.length === 0) {
             return res.status(404).json({ message: 'Pokémon não encontrado.' });
         }
-        res.status(204).send();
+        res.status(200).json({ message: 'Pokémon deletado com sucesso!' });
     } catch (error) {
         res.status(500).json({ error: 'Erro ao remover Pokémon.' });
     }
